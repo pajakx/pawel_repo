@@ -19,7 +19,7 @@ Created on Mon Apr  6 16:11:06 2020
 
 
 import pandas as pd
-
+import scipy 
 
 data_clean = pd.read_csv(r'C:\Users\Pawel\Documents\Python Scripts\Survey\Survey_nice.csv')
 
@@ -30,6 +30,9 @@ print(data_clean["participant"])
 
 ###Exclude participants
 #data_clean =data_clean.loc[data_clean['participant'] !='P6']
+
+#You can easily get min, max, mean and std of values using the describe function!!!
+data_clean.describe()
 
 ###Count by gender
 # Female = 16
