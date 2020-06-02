@@ -29,16 +29,39 @@ from statsmodels.multivariate.manova import MANOVA
 from pingouin import ancova
 
 #import data in long and wide format for different anlysis
-data_long = pd.read_csv(r'C:\Users\user\Desktop\FOCUS\behavioral\ready_to_stat\master_data_long_mDNA.csv')
+data_long = pd.read_csv(r'C:\Users\Pawel\Desktop\FOCUS\behavioral\ready_to_stat\master_data_long_mDNA.csv')
 #Exclude participant 26 for ERP analysis as we know that he is way off with amplitudes in this paradigm.
 data_long = data_long[data_long.participant != 'P26']
 data_long.describe()
 
 
-data_wide_mDNA =pd.read_csv(r'C:\Users\user\Desktop\FOCUS\behavioral\ready_to_stat\master_data_wide_mDNA.csv')
+data_wide_mDNA =pd.read_csv(r'C:\Users\Pawel\Desktop\FOCUS\behavioral\ready_to_stat\master_data_wide_mDNA.csv')
 #Exclude participant 26 for ERP analysis as we know that he is way off with amplitudes in this paradigm.
 data_wide_mDNA = data_wide_mDNA[data_wide_mDNA.participant != 'P26']
 data_wide_mDNA.describe()
+
+#Check mobileDNA data distribution
+
+#for screentime
+#Use Shapiro test to be sure that distribution is normal
+
+screen_normal =stats.shapiro(data_wide_mDNA['screentime_mean'])
+
+print(screen_normal)
+
+#(0.8090910315513611, 0.00019749953935388476)
+#Significant, therfore the distribution is not normal
+
+
+#for socialmedia
+
+social_normal =stats.shapiro(data_wide_mDNA['socialmedia_mean'])
+
+print(social_normal)
+
+#(0.8280704021453857, 0.00043687698780559003)
+#Significant, therfore the distribution is not normal
+
 
 # ANOVA - does correct reaction time differ between blocks?
 
@@ -46,9 +69,10 @@ aov_corr_rt = pg.rm_anova(data=data_long, dv='corr_rt', within= 'blocks', subjec
 
 print(aov_corr_rt)
 '''
-   Source     SS  DF   MS      F     p-unc    np2    eps
-0  blocks  0.000   2  0.0  0.431  0.652202  0.016  0.916
-1   Error  0.009  54  0.0      -         -      -      -
+   Source    SS  DF   MS      F     p-unc    np2    eps
+0  blocks  0.00   2  0.0  0.358  0.700787  0.013  0.927
+1   Error  0.01  56  0.0      -         -      -      -
+N=29
 '''
 ##Not significant##
 
@@ -58,9 +82,11 @@ aov_omission = pg.rm_anova(data=data_long, dv='om_err', within= 'blocks', subjec
 
 print(aov_omission)
 '''
-   Source   SS  DF   MS      F    p-unc    np2    eps
-0  blocks  0.0   2  0.0  0.425  0.65566  0.016  0.757
-1   Error  0.0  54  0.0      -        -      -      -
+Source   SS  DF   MS      F     p-unc    np2   eps
+0  blocks  0.0   2  0.0  0.352  0.704856  0.012  0.77
+1   Error  0.0  56  0.0      -         -      -     -
+N=29
+
 '''
 
 ##Not significant##
@@ -73,9 +99,10 @@ aov_false_alarm = pg.rm_anova(data=data_long, dv='false_alarm', within= 'blocks'
 print(aov_false_alarm)
 
 '''
-   Source   SS  DF   MS      F     p-unc    np2    eps
-0  blocks  0.0   2  0.0  1.675  0.196948  0.058  0.888
-1   Error  0.0  54  0.0      -         -      -      -
+   Source   SS  DF   MS      F     p-unc   np2    eps
+0  blocks  0.0   2  0.0  1.465  0.239802  0.05  0.903
+1   Error  0.0  56  0.0      -         -     -      -
+N=29
 '''
 
 ##Not significant##
@@ -143,16 +170,14 @@ print(sounds_amp_ttest)
 
 ######## ANOVA - does latencies  for P3b max amplitudes for targets differ between blocks?
 
-aov_latency_targets = pg.rm_anova(data=data_long, dv='latency_target_maxAmp_Pz', within= 'blocks', subject='participant', detailed=True)
+aov_latency_targets = pg.rm_anova(data=data_long, dv='latency_target_maxAmp_Pz', within= 'blocks', subject='participant', detailed=True, correction=True)
 
 print(aov_latency_targets)
-
-######################################################################
-####   Source         SS  DF       MS      F     p-unc    np2    eps##
-###0  blocks    871.264   2  435.632  0.501  0.608831  0.018  0.866###
-###1   Error  48728.736  56  870.156      -         -      -      -###
-######################################################################
-
+'''
+   Source         SS  DF       MS  ...    eps sphericity W-spher    p-spher
+0  blocks    328.881   2  164.440  ...  0.784      False   0.725  0.0152061
+1   Error  38504.452  54  713.045  ...      -          -       -          -
+'''
 ##Not significant##
 
 ######## Does latencies for P3a max amplitudes for targets differ between sounds buzz and neutral?
@@ -1355,7 +1380,7 @@ ax = sns.regplot(x=X, y=y, data=data_wide_mDNA)
 
 ########################################################################################
 ##Significant result means that when average social media screentime increases by 1 ####
-##the latency increases by 0.2680   p=0.036!!                                       ####
+##the latency increases by 0.2680   p=0.025!!                                       ####
 ########################################################################################
 
 
@@ -1646,6 +1671,19 @@ print(aov_relpowPz)
 
 '''
 
+######## ANOVA - does parietal alpha power psd dec log differ between blocks?
+
+aov_relpowPsd = pg.rm_anova(data=data_long, dv='parietal_declog_psd_alpha_power', within= 'blocks', subject='participant', detailed=True)
+
+print(aov_relpowPsd)
+
+'''
+   Source      SS  DF     MS      F  ...    np2    eps sphericity W-spher    p-spher
+0  blocks   1.571   2  0.785  0.915  ...  0.032  0.825      False   0.788  0.0401991
+1   Error  48.041  56  0.858      -  ...      -      -          -       -          -
+'''
+
+
 ##Caluculate if spending more average time on social media (in minutes) on a smartphone per day 
 #relates to parietal absolute alpha power with baseline correction in nodis block
 
@@ -1848,6 +1886,19 @@ print(aov_relpowFz)
    Source     SS  DF   MS      F     p-unc    np2    eps
 0  blocks  0.000   2  0.0  0.645  0.528619  0.023  0.821
 1   Error  0.013  56  0.0      -         -      -      -
+
+'''
+
+######## ANOVA - does frontal theta declog psd differ between blocks?
+
+aov_PSDthetafrontal = pg.rm_anova(data=data_long, dv='frontal_declog_psd_theta_power', within= 'blocks', subject='participant', detailed=True)
+
+print(aov_PSDthetafrontal)
+
+'''
+   Source      SS  DF     MS      F     p-unc    np2    eps
+0  blocks   0.655   2  0.327  0.588  0.558771  0.021  0.987
+1   Error  31.162  56  0.556      -         -      -      -
 
 '''
 

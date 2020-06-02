@@ -40,13 +40,13 @@ from statsmodels.multivariate.manova import MANOVA
 from pingouin import ancova
 
 #import data in long and wide format for different anlysis
-data_long = pd.read_csv(r'C:\Users\user\Desktop\FOCUS\behavioral\ready_to_stat\master_data_long_mDNA.csv')
+data_long = pd.read_csv(r'C:\Users\Pawel\Desktop\FOCUS\behavioral\ready_to_stat\master_data_long_mDNA.csv')
 #Exclude participant 26 as we know that he is way off with amplitudes in this paradigm.
 data_long = data_long[data_long.participant != 'P26']
 data_long.describe()
 
 
-data_wide_mDNA =pd.read_csv(r'C:\Users\user\Desktop\FOCUS\behavioral\ready_to_stat\master_data_wide_mDNA.csv')
+data_wide_mDNA =pd.read_csv(r'C:\Users\Pawel\Desktop\FOCUS\behavioral\ready_to_stat\master_data_wide_mDNA.csv')
 #Exclude participant 26 as we know that he is way off with amplitudes in this paradigm.
 data_wide_mDNA = data_wide_mDNA[data_wide_mDNA.participant != 'P26']
 data_wide_mDNA.describe()
@@ -72,17 +72,24 @@ freqbase_theta= pd.read_csv(r'C:\Users\user\Desktop\FOCUS\behavioral\ready_to_st
 ######################################################
 
 
+
 #Plot avergae reaction time per block
-sns.catplot(x="blocks", y="corr_rt", kind="bar", data=data_long);
-#Plot avergae reaction time per block
-sns.catplot(x="blocks", y="corr_rt", kind="bar", data=data_long);
+corr_rt= sns.catplot(x="blocks", y="corr_rt", kind="bar", data=data_long);
+corr_rt.set(xlabel='Conditions', ylabel='Correct RTs')
+plt.ylim(0.35, None)
+plt.show(corr_rt)
 #Plot avergae false alarm rate per block
-sns.catplot(x="blocks", y="false_alarm", kind="bar", data=data_long);
+falserate = sns.catplot(x="blocks", y="false_alarm", kind="bar", data=data_long);
+falserate.set(xlabel='Conditions', ylabel='False Alarms Rate')
+plt.show(falserate)
+
 #Plot counted false alarms per block
 sns.countplot(x="false_alarm", hue="blocks", data=data_be)
 data_be.describe()
 #Plot avergae omission errors rate per block
-sns.catplot(x="blocks", y="om_err", kind="bar", data=data_long);
+omrate = sns.catplot(x="blocks", y="om_err", kind="bar", data=data_long);
+omrate.set(xlabel='Conditions', ylabel='Omissioin Errors Rate')
+plt.show(omrate)
 #Plot counted omission errors per block
 sns.countplot(x="om_err", hue="blocks", data=data_be)
 
@@ -103,6 +110,15 @@ data_wide_mDNA2 = data_wide_mDNA.sort_values(['socialmedia_mean']).reset_index(d
 sns.catplot(x="participant", y="screentime_mean", kind="bar", data=data_wide_mDNA1);
 sns.catplot(x="participant", y="socialmedia_mean", kind="bar", data=data_wide_mDNA2);
 
+#Plot mDNA data in bins with duration of 1h
+mobdna1= sns.distplot(data_wide_mDNA["screentime_mean"]/60, kde=False, rug=False, color='indigo');
+mobdna1.set(xlabel='Screen time mean in h/day', ylabel='Participants')
+plt.show(mobdna1)
+
+
+mobdna2 = sns.distplot(data_wide_mDNA["socialmedia_mean"]/60, kde=False, rug=False, color='royalblue');
+mobdna2.set(xlabel='Social media mean in h/day', ylabel='Participants')
+plt.show(mobdna2)
 
 ###Amplitude and latency of P3b per block###
 

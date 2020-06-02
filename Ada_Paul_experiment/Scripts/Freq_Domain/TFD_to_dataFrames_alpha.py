@@ -24,7 +24,7 @@ ______      _       ______
 | |/ / (_| | || (_| | | | | | (_| | | | | | |  __/
 |___/ \__,_|\__\__,_\_| |_|  \__,_|_| |_| |_|\___|
                                                   
-paritel alpha
+parietal alpha
                                                   
 https://raphaelvallat.com/bandpower.html
 
