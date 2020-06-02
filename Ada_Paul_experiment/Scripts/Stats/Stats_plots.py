@@ -46,7 +46,7 @@ data_long = data_long[data_long.participant != 'P26']
 data_long.describe()
 
 
-data_wide_mDNA =pd.read_csv(r'C:\Users\Pawel\Desktop\FOCUS\behavioral\ready_to_stat\master_data_wide_mDNA.csv')
+data_wide_mDNA =pd.read_csv(r'C:\Users\user\Desktop\FOCUS\behavioral\ready_to_stat\master_data_wide_mDNA.csv')
 #Exclude participant 26 as we know that he is way off with amplitudes in this paradigm.
 data_wide_mDNA = data_wide_mDNA[data_wide_mDNA.participant != 'P26']
 data_wide_mDNA.describe()
@@ -72,24 +72,17 @@ freqbase_theta= pd.read_csv(r'C:\Users\user\Desktop\FOCUS\behavioral\ready_to_st
 ######################################################
 
 
-
 #Plot avergae reaction time per block
-corr_rt= sns.catplot(x="blocks", y="corr_rt", kind="bar", data=data_long);
-corr_rt.set(xlabel='Conditions', ylabel='Correct RTs')
-plt.ylim(0.35, None)
-plt.show(corr_rt)
+sns.catplot(x="blocks", y="corr_rt", kind="bar", data=data_long);
+#Plot avergae reaction time per block
+sns.catplot(x="blocks", y="corr_rt", kind="bar", data=data_long);
 #Plot avergae false alarm rate per block
-falserate = sns.catplot(x="blocks", y="false_alarm", kind="bar", data=data_long);
-falserate.set(xlabel='Conditions', ylabel='False Alarms Rate')
-plt.show(falserate)
-
+sns.catplot(x="blocks", y="false_alarm", kind="bar", data=data_long);
 #Plot counted false alarms per block
 sns.countplot(x="false_alarm", hue="blocks", data=data_be)
 data_be.describe()
 #Plot avergae omission errors rate per block
-omrate = sns.catplot(x="blocks", y="om_err", kind="bar", data=data_long);
-omrate.set(xlabel='Conditions', ylabel='Omissioin Errors Rate')
-plt.show(omrate)
+sns.catplot(x="blocks", y="om_err", kind="bar", data=data_long);
 #Plot counted omission errors per block
 sns.countplot(x="om_err", hue="blocks", data=data_be)
 
@@ -110,15 +103,6 @@ data_wide_mDNA2 = data_wide_mDNA.sort_values(['socialmedia_mean']).reset_index(d
 sns.catplot(x="participant", y="screentime_mean", kind="bar", data=data_wide_mDNA1);
 sns.catplot(x="participant", y="socialmedia_mean", kind="bar", data=data_wide_mDNA2);
 
-#Plot mDNA data in bins with duration of 1h
-mobdna1= sns.distplot(data_wide_mDNA["screentime_mean"]/60, kde=False, rug=False, color='indigo');
-mobdna1.set(xlabel='Screen time mean in h/day', ylabel='Participants')
-plt.show(mobdna1)
-
-
-mobdna2 = sns.distplot(data_wide_mDNA["socialmedia_mean"]/60, kde=False, rug=False, color='royalblue');
-mobdna2.set(xlabel='Social media mean in h/day', ylabel='Participants')
-plt.show(mobdna2)
 
 ###Amplitude and latency of P3b per block###
 
@@ -176,8 +160,11 @@ df8 = df6.join(df2, how='outer')
 df_forplot = pd.concat([df4,df7,df8],sort=False, ignore_index=False)
 
 
-sns.lmplot(x="socialmedia_mean", y="target_maxAmp_Pz", hue="blocks", data=df_forplot);
-
+P3b_social_amplitude = sns.lmplot(x="socialmedia_mean", y="target_maxAmp_Pz", hue="blocks", data=df_forplot);
+plt.xlabel("Social Media Apps Usage [min/day]")
+plt.ylabel("P3b Amplitude [uV]")
+#plt.title("") # You can comment this line out if you don't need title
+plt.show(P3b_social_amplitude)
 
 ###Plot the relation of average social media usage with latency in different blocks
 ##3 regression lines overlapping 
@@ -234,8 +221,11 @@ df5 = df6.join(df2, how='outer')
 df_forplot = pd.concat([df4,df5],sort=False, ignore_index=False)
 
 
-sns.lmplot(x="socialmedia_mean", y="sounds_latency_Cz", hue="blocks", data=df_forplot);
-
+P3a_social_latency = sns.lmplot(x="socialmedia_mean", y="sounds_latency_Cz", hue="blocks", data=df_forplot);
+plt.xlabel("Social Media Apps Usage [min/day]")
+plt.ylabel("P3a Latency [ms]")
+#plt.title("") # You can comment this line out if you don't need title
+plt.show(P3a_social_latency)
 
 
 ###Plot the relation of average social media usage with amplitude for different sounds
@@ -286,6 +276,11 @@ sns.catplot(x="blocks", y="parietal_alpha_rel_power", kind="bar", data=data_long
 #Parietal absolute power with baseline correction per block
 sns.catplot(x="blocks", y="parietal_AlphaPowerDecLog", kind="bar", data=data_long);
 
+#Parietal absolute declog psd power
+parietal_alpha = sns.catplot(x="blocks", y="parietal_declog_psd_alpha_power", kind="bar", data=data_long);
+plt.ylabel("Parietal Alpha Power")
+plt.show(parietal_alpha)
+
 #Parietal relative alpha power per block [Pz]
 sns.catplot(x="blocks", y="alpha_rel_powerPz", kind="bar", data=data_long);
 
@@ -313,8 +308,9 @@ sns.catplot(x="blocks", y="frontal_theta_rel_power", kind="bar", data=data_long)
 sns.catplot(x="blocks", y="frontal_thetaPowerDecLog", kind="bar", data=data_long);
 
 #frontal absolute LOG psd power with baseline correction per block
-sns.catplot(x="blocks", y="frontal_declog_psd_theta_power", kind="bar", data=data_long);
-
+frontal_theta=sns.catplot(x="blocks", y="frontal_declog_psd_theta_power", kind="bar", data=data_long);
+plt.ylabel("Frontal Theta Power")
+plt.show(frontal_theta)
 #frontal relative theta power per block [Fz]
 sns.catplot(x="blocks", y="theta_rel_powerFz", kind="bar", data=data_long);
 
