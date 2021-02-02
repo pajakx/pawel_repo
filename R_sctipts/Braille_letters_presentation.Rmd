@@ -1,0 +1,1124 @@
+---
+title: "Mirror Invariance in blind and sighted - behavioural analysis"
+author: "Paweł Jakuszyk"
+output:
+  slidy_presentation: default
+  beamer_presentation: default
+  ioslides_presentation: default
+background-size: contain
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(readxl)
+library(openxlsx)
+library(writexl)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(gplots)
+library(reshape2)
+library(gdata)
+library(kableExtra)
+library(formattable)
+library(stats)
+# read in the data
+my_data <- read_excel("C:\\Users\\Pawel\\Desktop\\Braille_Project\\BRAJL_LOGI\\behavioral_results_merged_no_Longitudinal.xlsx")
+#rename columns
+my_data <- my_data %>% 
+  rename(
+    SM = RTmeanSM,
+    SN = RTmeanSN,
+    DM = RTmeanDM,
+    DN = RTmeanDN,
+    )                     
+#melt from wide to long
+data_long <- gather(my_data, condition, meanRT, SM, SN, DN, DM, factor_key = TRUE)
+
+
+# convert variabes as factors
+data_long <- data_long %>% convert_as_factor(participant, age, group, version, condition)
+
+#drop unused columns ( otherwise the anova will not work in this rstatix package :( )
+data_long = subset(data_long, select = -c(...1,sumSN, sumSM, sumDM, sumDN))
+
+```
+
+
+
+
+## Group sizes
+<div align="center">
+```{r, echo=FALSE, message=FALSE, warning = FALSE, fig.align="center", out.width="50%", out.height="50%"}
+#count n of participants in each group
+groups_n <- (
+  data_long %>% group_by(group,age) %>% count(length(unique(participant)))
+)
+groups_n = subset(groups_n, select = -c(n))
+
+groups_n <-
+  (groups_n %>% 
+     rename(
+       'N' = 'length(unique(participant))',
+     )
+  )
+
+
+#n <- groups_n %>%
+# pivot_wider(names_from = age, values_from = N)
+#
+#n <- gather(groups_n, group, age)
+
+
+##visualize distribution o th number of participants in each group
+#I have created the table manually because I am an idiot
+group_distribution <- matrix(c(20,16,15,20),ncol=2,byrow=TRUE)
+colnames(group_distribution) <- c("adults","children")
+rownames(group_distribution) <- c("blind","sighted")
+group_distribution <- as.table(group_distribution)
+table_N <- kable(group_distribution, digits = 3, format = 'pandoc', caption = 'participant N')
+table_N
+
+# 2. Plot the groups N distribution
+balloonplot(t(group_distribution), main ="Baloonplot distribution", xlab ="", ylab="",
+            label = FALSE, show.margins = FALSE)
+
+#check if the groups N is significantly different
+chisq <- chisq.test(group_distribution)
+chisq
+
+```
+</div>
+
+## Data visualization
+
+<div align="center">
+```{r, echo=FALSE, message=FALSE, warning = FALSE}
+bxp <- ggboxplot(
+  data_long, x = "condition", y = "meanRT",
+  color = "version", palette = "jco",
+  facet.by = "group", short.panel.labs = FALSE
+)
+bxp
+```
+</div>
+
+## Normality plot for images
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#Create QQ plot for each cell of design
+#removing images
+data_long_noLetters <- data_long[!(data_long$version %in%  'letters'),]
+ggqqplot(data_long_noLetters, "meanRT", ggtheme = theme_bw()) +
+  facet_grid(group + age ~ condition, labeller = "label_both")
+```
+</div>
+
+## Normality plot for letters
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#Create QQ plot for each cell of design
+#removing images
+data_long_noImage <- data_long[!(data_long$version %in%  'image'),]
+ggqqplot(data_long_noImage, "meanRT", ggtheme = theme_bw()) +
+  facet_grid(group + age ~ condition, labeller = "label_both")
+```
+</div>
+
+## Data log10 transformation 
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#check the homogneity
+homogneity_pre_transformation <- data_long %>%
+  group_by(version, condition) %>%
+  levene_test(meanRT ~ group*age)
+
+
+##IF THE HOMOGNEITY OF VARIANCE IS BROKEN
+#transform data to achieve homogneity (log10 transformation)
+data_transformed <- (
+  data_long %>%
+    mutate_at(vars(meanRT), ~log(.))
+  
+)
+
+#check the homogneity again
+homogneity_after_transformation <- data_transformed %>%
+  group_by(version, condition) %>%
+  levene_test(meanRT ~ group*age)
+
+
+#boxplot transformed data
+bxp <- ggboxplot(
+  data_transformed, x = "condition", y = "meanRT",
+  color = "version", palette = "jco",
+  facet.by = "group", short.panel.labs = FALSE
+)
+bxp
+```
+</div>
+
+## Core analysis 
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+options(scipen = 999)
+
+res.aov_all <- anova_test(
+  data = data_transformed, dv = meanRT, wid = participant,
+  between = c(group,age), within = c(version, condition)
+)
+
+#create APA style ANOVA table
+#table_mainANOVA <- kable(res.aov_all[c("ANOVA")], digits = 3,format = 'html', caption = 'Mixed model 2x2x2x4 ANOVA with two within (version, condition) and two between (group, age) factors') # the digits argument controls rounding
+#table_mainANOVA
+
+#kbl(res.aov_all[c("ANOVA")])
+
+#unlist the anova
+anova_all <- data.frame(Reduce(rbind, res.aov_all[c("ANOVA")]))
+
+anova_all %>%
+  mutate(
+    p = cell_spec(p, color = ifelse(p < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Mixed model 2x2x2x4 ANOVA with two within (version, condition) and two between (group, age) factors", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+  
+  #row_spec(3:5, bold = T, color = "white", background = "#D7261E")
+
+
+```
+</div>
+
+## Simple group effect
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#conduct a post hoc tukey test
+Group_effect_ANOVA <- aov(meanRT ~ group, data = data_transformed) %>% tukey_hsd()
+Group_effect_ANOVA %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Post hoc Tukey test for group differences in mean RTs", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br><br><br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#create summary stats for variable of interest
+sumSTATS_group <-(
+  data_long %>%
+    group_by(group) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)
+
+#convert them to numeric
+#sumSTATS_group$mean <- as.numeric(as.character(sumSTATS_group$mean))
+
+
+
+#sumSTATS_group$mean <- lapply(sumSTATS_group$mean, function(x) {
+  #  cell_spec(x, bold = T, 
+   #           color = spec_color(x, end = 0.9),
+    #          font_size = 18)
+#})
+sumSTATS_group$mean <- color_bar("lightgreen")(sumSTATS_group$mean)
+
+kbl(sumSTATS_group, escape = F, caption = "Mean reaction times in blind and sighted", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(4, width = "5cm")
+
+
+```
+</div>
+<br><br><br>
+Result:
+<br>
+- On average blind people reacted significantly slower than sighted individuals.
+
+
+## Simple age effect
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#conduct a post hoc tukey test
+options(scipen = 999)
+Age_effect_ANOVA <- aov(meanRT ~ age, data = data_transformed) %>% tukey_hsd()
+Age_effect_ANOVA %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Post hoc Tukey test for age differences in mean RTs", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br><br><br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#create summary stats for variable of interest
+sumSTATS_age <-(
+  data_long %>%
+    group_by(age) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)
+
+#convert them to numeric
+#sumSTATS_group$mean <- as.numeric(as.character(sumSTATS_group$mean))
+
+
+
+#sumSTATS_group$mean <- lapply(sumSTATS_group$mean, function(x) {
+  #  cell_spec(x, bold = T, 
+   #           color = spec_color(x, end = 0.9),
+    #          font_size = 18)
+#})
+sumSTATS_age$mean <- color_bar("lightgreen")(sumSTATS_age$mean)
+
+kbl(sumSTATS_age, escape = F, caption = "Mean reaction times in children and adults", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(4, width = "5cm")
+
+
+```
+</div>
+<br><br><br>
+Result:
+<br>
+- On average children reacted significantly slower than adults.
+
+## Simple version effect
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#subset data to remove incomplete cases
+no_image <- c('ABF18','ABM06', 'CBF401', 'CBF404')
+data_version_subset <- data_transformed[ !(data_transformed$participant %in% no_image), ]
+
+
+Version_effect_ANOVA <- data_version_subset %>% 
+  t_test(meanRT ~ version, p.adjust.method = "bonferroni", paired = TRUE) %>%
+  add_significance()
+
+
+Version_effect_ANOVA %>%
+  mutate(
+    p = cell_spec(p, color = ifelse(p < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Post hoc paired t-test with Bonferroni correction for version differences in mean RTs", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br><br><br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#create summary stats for variable of interest
+sumSTATS_version <-(
+  data_long %>%
+    group_by(version) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)
+
+#convert them to numeric
+#sumSTATS_group$mean <- as.numeric(as.character(sumSTATS_group$mean))
+
+
+
+#sumSTATS_group$mean <- lapply(sumSTATS_group$mean, function(x) {
+  #  cell_spec(x, bold = T, 
+   #           color = spec_color(x, end = 0.9),
+    #          font_size = 18)
+#})
+sumSTATS_version$mean <- color_bar("lightgreen")(sumSTATS_version$mean)
+
+kbl(sumSTATS_version, escape = F, caption = "Mean reaction times for images and letters", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(4, width = "5cm")
+
+
+```
+</div>
+<br><br><br>
+Result:
+<br>
+- On average participants reacted significantly slower to images than letters.
+
+## Simple condition effect
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+Version_effect_ANOVA <- data_transformed %>% 
+  t_test(meanRT ~ condition, p.adjust.method = "bonferroni", paired = TRUE) %>%
+  add_significance()
+
+
+Version_effect_ANOVA %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Post hoc paired t-test with Bonferroni correction for condition differences in mean RTs", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br><br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#create summary stats for variable of interest
+sumSTATS_condition <-(
+  data_long %>%
+    group_by(condition) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+) %>% arrange(mean)
+
+#convert them to numeric
+#sumSTATS_group$mean <- as.numeric(as.character(sumSTATS_group$mean))
+
+
+
+#sumSTATS_group$mean <- lapply(sumSTATS_group$mean, function(x) {
+  #  cell_spec(x, bold = T, 
+   #           color = spec_color(x, end = 0.9),
+    #          font_size = 18)
+#})
+sumSTATS_condition$mean <- color_bar("lightgreen")(sumSTATS_condition$mean)
+
+kbl(sumSTATS_condition, escape = F, caption = "Mean reaction times for different conditions", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(4, width = "5cm")
+
+
+```
+</div>
+<br>
+Results:
+<br>
+- On average participants reacted significantly slower to **same mirror** than **same normal** pairs.
+<br>
+- On average participants reacted significantly slower to **different normal** than **same normal** pairs.
+
+## Two-way interaction between version and group factors
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#A significant two-way interaction indicates that the impact that one factor has on the outcome variable depends on the level of the other factor (and vice #versa). So, you can decompose a significant two-way interaction into:
+#
+  #  Simple main effect: run one-way model of the first variable (factor A) at each level of the second variable (factor B),
+ #   Simple pairwise comparisons: if the simple main effect is significant, run multiple pairwise comparisons to determine which groups are different.
+#
+#For a non-significant two-way interaction, you need to determine whether you have any statistically significant main effects from the ANOVA output.
+
+#FOR SIGNIFICANT TWO WAY INTERACTION
+
+# Effect of group for both version types
+options(scipen = 100)
+groupXversion <- data_version_subset %>%
+  group_by(group) %>%
+  anova_test(dv = meanRT, wid = participant, within = version) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+#drop unadjusted p
+drops <- c("p","p<.05")
+groupXversion <- groupXversion[ , !(names(groupXversion) %in% drops)]
+
+groupXversion %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of version for groups", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+# Pairwise comparisons between group levels
+pwc_groupxversion <- data_version_subset %>%
+  group_by(group) %>%
+  pairwise_t_test(meanRT ~ version, p.adjust.method = "bonferroni", paired = TRUE) %>%
+  filter(group == "blind")
+
+drops <- c("p","p.signif")
+pwc_groupxversion <- pwc_groupxversion[ , !(names(pwc_groupxversion) %in% drops)]
+
+pwc_groupxversion %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Pairwise Bonferroni corrected comparisons between version types in blind group", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#create summary stats for variable of interest
+sumSTATS_groupxversion <-(
+  data_version_subset %>%
+    group_by(group, version) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)
+
+
+sumSTATS_groupxversion$mean <- color_bar("lightgreen")(sumSTATS_groupxversion$mean)
+#sort dataframe by the column of interest (for better display)
+sumSTATS_groupxversion <-(
+  sumSTATS_groupxversion %>% arrange(version))  %>%
+  filter(group == "blind")
+
+kbl(sumSTATS_groupxversion, escape = F, caption = "Mean reaction times for different versions in blind", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(5, width = "5cm")
+```
+
+</div>
+Results:
+<br>
+- On average blind people reacted significantly slower to images than letters version.
+
+## Two-way interaction between condition and group factors
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#A significant two-way interaction indicates that the impact that one factor has on the outcome variable depends on the level of the other factor (and vice #versa). So, you can decompose a significant two-way interaction into:
+#
+  #  Simple main effect: run one-way model of the first variable (factor A) at each level of the second variable (factor B),
+ #   Simple pairwise comparisons: if the simple main effect is significant, run multiple pairwise comparisons to determine which groups are different.
+#
+#For a non-significant two-way interaction, you need to determine whether you have any statistically significant main effects from the ANOVA output.
+
+#FOR SIGNIFICANT TWO WAY INTERACTION
+
+# Effect of group for both version types
+options(scipen = 100)
+groupXcondition <- data_transformed %>%
+  group_by(group) %>%
+  anova_test(dv = meanRT, wid = participant, within = condition) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+#drop unadjusted p
+drops <- c("p","p<.05")
+groupXcondition <- groupXcondition[ , !(names(groupXcondition) %in% drops)]
+
+groupXcondition %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of condition types for blind and sighted groups", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+# Pairwise comparisons between group levels
+pwc_groupxcondition <- data_transformed %>%
+  group_by(group) %>%
+  pairwise_t_test(meanRT ~ condition, p.adjust.method = "bonferroni", paired = TRUE)
+
+drops <- c("p","p.signif")
+pwc_groupxcondition <- pwc_groupxcondition[ , !(names(pwc_groupxcondition) %in% drops)]
+
+pwc_groupxcondition %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Pairwise Bonferroni corrected comparisons between condition levels in blind and sighted", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#create summary stats for variable of interest
+sumSTATS_groupxcondition <-(
+  data_long %>%
+    group_by(group, condition) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+) %>% arrange(mean)
+
+
+sumSTATS_groupxcondition$mean <- color_bar("lightgreen")(sumSTATS_groupxcondition$mean)
+#sort dataframe by the column of interest (for better display)
+
+kbl(sumSTATS_groupxcondition, escape = F, caption = "Mean reaction times for different conditions in blind and sighted", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(5, width = "5cm")
+```
+
+</div>
+Results:
+<br>
+- On average blind  were significantly slower in **same mirror** than in **different mirror** condition.
+<br>
+- On average sighted were significantly faster in **same normal** condition compared to other conditions.
+
+## Two-way interaction between condition and age factors
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#A significant two-way interaction indicates that the impact that one factor has on the outcome variable depends on the level of the other factor (and vice #versa). So, you can decompose a significant two-way interaction into:
+#
+  #  Simple main effect: run one-way model of the first variable (factor A) at each level of the second variable (factor B),
+ #   Simple pairwise comparisons: if the simple main effect is significant, run multiple pairwise comparisons to determine which groups are different.
+#
+#For a non-significant two-way interaction, you need to determine whether you have any statistically significant main effects from the ANOVA output.
+
+#FOR SIGNIFICANT TWO WAY INTERACTION
+
+# Effect of group for both version types
+options(scipen = 100)
+ageXcondition <- data_transformed %>%
+  group_by(age) %>%
+  anova_test(dv = meanRT, wid = participant, within = condition) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+#drop unadjusted p
+drops <- c("p","p<.05")
+ageXcondition <- ageXcondition[ , !(names(ageXcondition) %in% drops)]
+
+ageXcondition %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of condition types for both age groups", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+# Pairwise comparisons between group levels
+pwc_agexcondition <- data_transformed %>%
+  group_by(age) %>%
+  pairwise_t_test(meanRT ~ condition, p.adjust.method = "bonferroni", paired = TRUE) %>%
+  filter(age == "adult")
+
+drops <- c("p","p.signif")
+pwc_agexcondition <- pwc_agexcondition[ , !(names(pwc_agexcondition) %in% drops)]
+
+pwc_agexcondition %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Pairwise Bonferroni corrected comparisons between condition levels in adults", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#create summary stats for variable of interest
+sumSTATS_agexcondition <-(
+  data_long %>%
+    group_by(age, condition) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+) %>% arrange(mean)
+
+
+sumSTATS_agexcondition$mean <- color_bar("lightgreen")(sumSTATS_agexcondition$mean)
+#sort dataframe by the column of interest (for better display)
+sumSTATS_agexcondition <-(
+  sumSTATS_agexcondition %>% 
+    filter(age == "adult"))
+
+kbl(sumSTATS_agexcondition, escape = F, caption = "Mean reaction times for different conditions in adults", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(5, width = "5cm")
+```
+
+</div>
+Results:
+<br>
+- On average adults were significantly faster in **same normal** than **same mirror** and **different normal** conditions.
+
+## Three-way interaction between version, group and age factors
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#If there is a significant three-way interaction effect, you can decompose it into:
+#
+ #   Simple two-way interaction: run two-way interaction at each level of third variable,
+  #  Simple simple main effect: run one-way model at each level of second variable, and
+   # simple simple pairwise comparisons: run pairwise or other post-hoc comparisons if necessary.
+#
+#If you do not have a statistically significant three-way interaction, you need to determine whether you have any statistically significant two-way interaction #from the ANOVA output. A significant two-way interaction can be followed up by a simple main effect analysis, which can be followed up by simple pairwise #comparisons if significant.
+
+#In this section we’ll describe the procedure for a significant three-way interaction.
+
+#FOR SIGNIFICANT TWO WAY INTERACTION
+no_image <- c('ABF18','ABM06', 'CBF401', 'CBF404')
+data_version_subset <- data_transformed[ !(data_transformed$participant %in% no_image), ]
+
+# Effect of group for both version types
+options(scipen = 100)
+groupxagexversion <- data_version_subset %>%
+  group_by(version) %>%
+  anova_test(dv = meanRT, wid = participant, between = c(age, group)) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+#drop unadjusted p
+drops <- c("p","p<.05")
+groupxagexversion <- groupxagexversion[ , !(names(groupxagexversion) %in% drops)]
+
+groupxagexversion %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of age and group for version types", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+# fist test the effect on age
+image.effect <- data_version_subset %>%
+  group_by(version, group) %>%
+  anova_test(dv = meanRT, wid = participant, between = age) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+image.effect <- image.effect %>% filter(version == "image")
+drops <- c("p<.05", "p")
+image.effect <- image.effect[ , !(names(image.effect) %in% drops)]
+
+# fist test the effect on groups
+image.effect1 <- data_version_subset %>%
+  group_by(version, age) %>%
+  anova_test(dv = meanRT, wid = participant, between = group) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+image.effect1 <- image.effect1 %>% filter(version == "image")
+drops <- c("p<.05", "p")
+image.effect1 <- image.effect1[ , !(names(image.effect1) %in% drops)]
+
+image.effect %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of age for every group level in image version", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+image.effect1 %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of group for every age level in image version", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+
+# compute pairwise comparisons
+
+
+pwc_groupxagexversion <- data_version_subset %>%
+  group_by(version, group) %>%
+  pairwise_t_test(meanRT ~ age, p.adjust.method = "bonferroni") %>%
+  select(-p, -p.signif) # Remove details
+pwc_groupxagexversion <-pwc_groupxagexversion %>% filter(version == "image")
+
+pwc_groupxagexversion1 <- data_version_subset %>%
+  group_by(version, age) %>%
+  pairwise_t_test(meanRT ~ group, p.adjust.method = "bonferroni") %>%
+  select(-p, -p.signif) # Remove details
+pwc_groupxagexversion1 <-pwc_groupxagexversion1 %>% filter(version == "image")
+
+drops <- c("p","p.signif")
+pwc_groupxagexversion <- pwc_groupxagexversion[ , !(names(pwc_groupxagexversion) %in% drops)]
+pwc_groupxagexversion1 <- pwc_groupxagexversion1[ , !(names(pwc_groupxagexversion1) %in% drops)]
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+pwc_groupxagexversion %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Pairwise Bonferroni corrected comparisons between groups for every age level", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+pwc_groupxagexversion1 %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Pairwise Bonferroni corrected comparisons between age for every group level", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+
+
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#create summary stats for variable of interest
+sumSTATS_groupxagexversion <-(
+  data_long %>%
+    group_by(group, age, version) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)  %>% arrange(mean)
+
+sumSTATS_groupxagexversion <-sumSTATS_groupxagexversion %>% filter(version == "image")
+
+sumSTATS_groupxagexversion$mean <- color_bar("lightgreen")(sumSTATS_groupxagexversion$mean)
+
+
+kbl(sumSTATS_groupxagexversion, escape = F, caption = "Mean reaction times for images version in blind and sighted adults and children", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(6, width = "6cm")
+```
+
+</div>
+Results:
+<br>
+- For images version children were significantly slower than adults and blind were significantly slower than sighted.
+
+## Core analysis for letters version only
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+data_no_images <- data_transformed %>% filter(version == "letters")
+
+options(scipen = 999)
+
+res.aov_all_no_images <- anova_test(
+  data = data_no_images, dv = meanRT, wid = participant,
+  between = c(group,age), within = c(condition)
+)
+
+
+#unlist the anova
+res.aov_all_no_images <- data.frame(Reduce(rbind, res.aov_all_no_images[c("ANOVA")]))
+
+res.aov_all_no_images %>%
+  mutate(
+    p = cell_spec(p, color = ifelse(p < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Mixed model 2x2x2x4 ANOVA with two within (version, condition) and two between (group, age) factors", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+  
+  #row_spec(3:5, bold = T, color = "white", background = "#D7261E")
+
+
+```
+</div>
+
+
+## Simple group effect for letters version only
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#conduct a post hoc tukey test
+Group_effect_ANOVA_letters <- aov(meanRT ~ group, data = data_no_images) %>% tukey_hsd()
+Group_effect_ANOVA_letters %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Post hoc Tukey test for group differences in mean RTs", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br><br><br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#create summary stats for variable of interest
+sumSTATS_group_letters <-(
+  data_long %>% filter(version == "letters") %>%
+    group_by(group) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)
+
+#convert them to numeric
+#sumSTATS_group$mean <- as.numeric(as.character(sumSTATS_group$mean))
+
+
+
+#sumSTATS_group$mean <- lapply(sumSTATS_group$mean, function(x) {
+  #  cell_spec(x, bold = T, 
+   #           color = spec_color(x, end = 0.9),
+    #          font_size = 18)
+#})
+sumSTATS_group_letters$mean <- color_bar("lightgreen")(sumSTATS_group_letters$mean)
+
+kbl(sumSTATS_group_letters, escape = F, caption = "Mean reaction times in blind and sighted", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(4, width = "5cm")
+
+
+```
+</div>
+<br><br><br>
+Result:
+<br>
+- On average blind people reacted significantly slower than sighted.
+
+
+
+## Simple age effect for letters version only
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#conduct a post hoc tukey test
+options(scipen = 999)
+Age_effect_ANOVA_letters <- aov(meanRT ~ age, data = data_no_images) %>% tukey_hsd()
+Age_effect_ANOVA_letters %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Post hoc Tukey test for age differences in mean RTs", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br><br><br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#create summary stats for variable of interest
+sumSTATS_age_letters <-(
+  data_long %>% filter(version == "letters") %>%
+    group_by(age) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)
+
+#convert them to numeric
+#sumSTATS_group$mean <- as.numeric(as.character(sumSTATS_group$mean))
+
+
+
+#sumSTATS_group$mean <- lapply(sumSTATS_group$mean, function(x) {
+  #  cell_spec(x, bold = T, 
+   #           color = spec_color(x, end = 0.9),
+    #          font_size = 18)
+#})
+sumSTATS_age_letters$mean <- color_bar("lightgreen")(sumSTATS_age_letters$mean)
+
+kbl(sumSTATS_age_letters, escape = F, caption = "Mean reaction times in children and adults", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(4, width = "5cm")
+
+
+```
+</div>
+<br><br><br>
+Result:
+<br>
+- On average children reacted significantly slower than adults.
+
+## Simple condition effect for letters version only
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+condition_effect_ANOVA_letters <- data_no_images %>% 
+  t_test(meanRT ~ condition, p.adjust.method = "bonferroni", paired = TRUE) %>%
+  add_significance()
+
+
+condition_effect_ANOVA_letters %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Post hoc paired t-test with Bonferroni correction for condition differences in mean RTs", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br><br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+#create summary stats for variable of interest
+sumSTATS_condition_letters <-(
+  data_long %>%
+    group_by(condition) %>% filter(version == "letters") %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+) %>% arrange(mean)
+
+sumSTATS_condition_letters$mean <- color_bar("lightgreen")(sumSTATS_condition_letters$mean)
+
+kbl(sumSTATS_condition_letters, escape = F, caption = "Mean reaction times for different conditions", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(4, width = "5cm")
+
+```
+</div>
+<br><br><br>
+Result:
+<br>
+- On average participants reacted significantly faster in **same normal** condition than **different normal** and **same mirror**.
+
+## Two-way interaction between condition and group factors for letters version only
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#A significant two-way interaction indicates that the impact that one factor has on the outcome variable depends on the level of the other factor (and vice #versa). So, you can decompose a significant two-way interaction into:
+#
+  #  Simple main effect: run one-way model of the first variable (factor A) at each level of the second variable (factor B),
+ #   Simple pairwise comparisons: if the simple main effect is significant, run multiple pairwise comparisons to determine which groups are different.
+#
+#For a non-significant two-way interaction, you need to determine whether you have any statistically significant main effects from the ANOVA output.
+
+#FOR SIGNIFICANT TWO WAY INTERACTION
+
+# Effect of group for both version types
+options(scipen = 100)
+groupXcondition_letters <- data_no_images %>%
+  group_by(group) %>%
+  anova_test(dv = meanRT, wid = participant, within = condition) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+#drop unadjusted p
+drops <- c("p","p<.05")
+groupXcondition_letters <- groupXcondition_letters[ , !(names(groupXcondition_letters) %in% drops)]
+
+groupXcondition_letters %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of condition types for blind and sighted groups", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+# Pairwise comparisons between group levels
+pwc_groupXcondition_letters <- data_no_images %>% filter(group == "sighted") %>%
+  group_by(group) %>%
+  pairwise_t_test(meanRT ~ condition, p.adjust.method = "bonferroni", paired = TRUE)
+
+drops <- c("p","p.signif")
+pwc_groupXcondition_letters <- pwc_groupXcondition_letters[ , !(names(pwc_groupXcondition_letters) %in% drops)]
+
+pwc_groupXcondition_letters %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Pairwise Bonferroni corrected comparisons between condition levels in blind and sighted", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+
+
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#create summary stats for variable of interest
+sumSTATS_groupxcondition_letters <-(
+  data_long %>% filter(version == "letters") %>%
+    group_by(group, condition) %>% 
+    get_summary_stats(meanRT, type = "mean_sd")
+) %>% arrange(mean) %>% filter(group == "sighted")
+
+
+sumSTATS_groupxcondition_letters$mean <- color_bar("lightgreen")(sumSTATS_groupxcondition_letters$mean)
+#sort dataframe by the column of interest (for better display)
+
+kbl(sumSTATS_groupxcondition_letters, escape = F, caption = "Mean reaction times for different conditions in blind and sighted", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(5, width = "5cm")
+```
+
+</div>
+Results:
+<br>
+- On average sighted  were significantly faster **same normal** than in **different normal** and **same mirror** conditions.
+
+## Three-way interaction between condition, group and age factors for letters version only
+
+<div align="center">
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#If there is a significant three-way interaction effect, you can decompose it into:
+#
+ #   Simple two-way interaction: run two-way interaction at each level of third variable,
+  #  Simple simple main effect: run one-way model at each level of second variable, and
+   # simple simple pairwise comparisons: run pairwise or other post-hoc comparisons if necessary.
+#
+#If you do not have a statistically significant three-way interaction, you need to determine whether you have any statistically significant two-way interaction #from the ANOVA output. A significant two-way interaction can be followed up by a simple main effect analysis, which can be followed up by simple pairwise #comparisons if significant.
+
+#In this section we’ll describe the procedure for a significant three-way interaction.
+
+#FOR SIGNIFICANT TWO WAY INTERACTION
+
+# Effect of group for both version types
+options(scipen = 100)
+groupxagexcondition_letters <- data_no_images %>%
+  group_by(age) %>%
+  anova_test(dv = meanRT, wid = participant, between = c(group), within = condition) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance()
+#drop unadjusted p
+drops <- c("p","p<.05")
+groupxagexcondition_letters <- groupxagexcondition_letters[ , !(names(groupxagexcondition_letters) %in% drops)]
+
+groupxagexcondition_letters %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of group and conditions for age", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+# test the effect
+
+adult.effect <- data_no_images %>% group_by(group, age) %>% 
+        do(tidy(aov(meanRT ~ condition+Error(participant), data = .))) %>% 
+        adjust_pvalue(method = "bonferroni") %>%
+        add_significance()
+
+#drop unadjusted p
+drops <- c("p.value","stratum")
+adult.effect <- adult.effect[ , !(names(adult.effect) %in% drops)] %>% filter(age == "adult")
+adult.effect <-adult.effect[complete.cases(adult.effect), ]
+
+
+adult.effect %>%
+  mutate(
+    p.value.adj = cell_spec(p.value.adj, color = ifelse((p.value.adj < 0.05)& (!is.na(p.value.adj)) , "green","black"))) %>%
+  kable(escape = FALSE, caption = "Effect of condition and adult age for group levels", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+
+# compute pairwise comparisons
+
+
+pwc_groupxagexcondition_letters <- data_no_images %>%
+  group_by(age, group) %>%
+  pairwise_t_test(meanRT ~ condition, p.adjust.method = "bonferroni", paired = TRUE) %>%
+  select(-p) # Remove details
+pwc_groupxagexcondition_letters <-pwc_groupxagexcondition_letters %>% filter(age == "adult") %>% filter(group == "sighted")
+
+
+pwc_groupxagexcondition_letters %>%
+  mutate(
+    p.adj = cell_spec(p.adj, color = ifelse(p.adj < 0.05, "green","black"))) %>%
+  kable(escape = FALSE, caption = "Pairwise Bonferroni corrected comparisons between sigted adults for every condition level", digits = 3) %>%
+  kable_styling(bootstrap_options = c("condensed"), font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey")
+```
+<br>
+```{r echo=FALSE, message=FALSE, warning = FALSE}
+#create summary stats for variable of interest
+sumSTATS_groupxagexversion <-(
+  data_long %>% filter(version == "letters") %>% 
+    group_by(group, age, condition) %>%
+    get_summary_stats(meanRT, type = "mean_sd")
+)  %>% arrange(mean) %>% filter(age == "adult") %>% filter(group == "sighted")
+
+
+sumSTATS_groupxagexversion$mean <- color_bar("lightgreen")(sumSTATS_groupxagexversion$mean)
+
+
+kbl(sumSTATS_groupxagexversion, escape = F, caption = "Mean reaction times for images version in blind and sighted adults and children", digits = 3) %>%
+  kable_styling(font_size = 18) %>%
+    column_spec(1, bold = TRUE, border_right = TRUE, color = "black", background = "lightgrey") %>%
+    column_spec(6, width = "6cm")
+```
+
+</div>
+Results:
+<br>
+- SIghted adults performed significantly faster in **same normal** than in **different normal** condition.
+

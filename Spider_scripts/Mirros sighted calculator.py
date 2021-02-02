@@ -37,8 +37,11 @@ if not os.path.exists(directory_to_write):
     os.makedirs(directory_to_write)
 
 # Enter the lists of subjects codes and runs you want to analyse
-pNUM = ['01', '02', '03', '04', '05', '06', '07', '08', '09']
-#pNUM = list(range(1, 1000))
+pNUM1 = ['01', '02', '03', '04', '05', '06', '07', '08', '09']
+pNUM2 = list(range(1, 1000))
+
+pNUM = pNUM1 + pNUM2
+
 timepoint = ['', '_2', '_3', '_4', '_42', '_22']
 
 run = ['run1', 'run2', 'run3', 'run4', 'run5', 'run6' ]
@@ -152,13 +155,20 @@ for p in pNUM:
                                                    'RTmeanDM':RTmeanDM}, 
                                                   index = (0,1))
                             
-                            output['participant'] = str(c) + str(p)                           
+                            output['participant'] = str(c) +str(p)
+                            output['p_code'] = str(c)
                             output['run'] = str(r)
                             output['version'] = str(v)
                             output['timepoint'] = str(t)
-                            output = output.drop(1)
+                            output['group'] = 'sighted'
                             
-                            output = output[['participant','version','run','timepoint','RTmeanSN','RTmeanSM','RTmeanDN','RTmeanDM','sumSN','sumSM','sumDN','sumDM']]
+                            output['age'] = np.where(((output['p_code'] == 'ACM') | (output['p_code'] == 'ACF')),'adult','child')
+                            
+                            output.drop('p_code', inplace=True, axis=1)
+                                                        
+                            output = output[['participant','group','age','version','run','timepoint','RTmeanSN','RTmeanSM','RTmeanDN','RTmeanDM','sumSN','sumSM','sumDN','sumDM']]
+                            
+                            output = output.drop(1)
                             
                             #Append the result with a master dataframe list
                             master_list.append(output)
@@ -173,8 +183,47 @@ for p in pNUM:
 
 #Concat the master_list 
 data_master = pd.concat(master_list,ignore_index=True)
+'''
+# melt from wide to long
+
+data_master_long1 =  pd.melt(data_master, id_vars=['participant'], value_vars=['RTmeanSN','RTmeanSM','RTmeanDN','RTmeanDM'],
+
+        var_name='conditions', value_name='meanRT')
+
+data_master_long2 =  pd.melt(data_master, id_vars=['participant','age_group','version','run','timepoint'], value_vars=['RTmeanSN','RTmeanSM','RTmeanDN','RTmeanDM'],
+
+        var_name='conditions', value_name='meanRT')
+
+data_master_long3 =  pd.melt(data_master, id_vars=['participant'], value_vars=['RTmeanSN','RTmeanSM','RTmeanDN','RTmeanDM'],
+
+        var_name='conditions', value_name='meanRT')
+
+
+data_master_long = data_master_long.replace(             
+   ['Target_Block_Neutral_maxAmp_Pz', 
+    'Target_Block_Buzz_maxAmp_Pz', 
+    'Target_Block_Nodis_maxAmp_Pz'],
+                                  
+   ['neutral_block',
+    'buzz_block',
+    'nodis_block']
+   )
+
+'''
+#drop timepoints
+data_master = data_master[data_master.timepoint != '_2']
+data_master.drop('timepoint', inplace=True, axis=1)
+
+#calculate mean for all runs
+data_master_runMEAN = data_master.groupby(['participant','group','age','version'], as_index=False).mean()
 
 #Save the master data to an excel file
 data_master.to_excel(directory_to_write + '\\' + 'behavioral_results_sighted.xlsx', index = None, header=True)
+data_master_runMEAN.to_excel(directory_to_write + '\\' + 'behavioral_results_sighted_runMEAN.xlsx', index = None, header=True)
+
+#Save the master data to an csv file
+data_master.to_csv(directory_to_write + '\\' + 'behavioral_results_sighted.csv', index = None, header=True)
+data_master_runMEAN.to_csv(directory_to_write + '\\' + 'behavioral_results_sighted_runMEAN.csv', index = None, header=True)
+
 
 print('Data processing complete!')
